@@ -1,0 +1,187 @@
+name: adr-sync plugin CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    name: Validate plugin structure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate plugin.json
+        run: |
+          echo "Validating .claude-plugin/plugin.json..."
+          python3 - <<'EOF'
+          import json, sys
+
+          with open('.claude-plugin/plugin.json') as f:
+              p = json.load(f)
+
+          errors = []
+
+          required_keys = ['name', 'version', 'author', 'description', 'skills', 'commands']
+          for k in required_keys:
+              if k not in p:
+                  errors.append(f'Missing required key: {k}')
+
+          if 'author' in p and 'name' not in p.get('author', {}):
+              errors.append('author.name is required')
+
+          if not isinstance(p.get('skills', None), list):
+              errors.append('skills must be a list of directory paths')
+
+          if not isinstance(p.get('commands', None), list):
+              errors.append('commands must be a list of .md paths')
+
+          if errors:
+              for e in errors:
+                  print(f'ERROR: {e}')
+              sys.exit(1)
+
+          print(f"plugin.json OK — name={p['name']} version={p['version']}")
+          EOF
+
+      - name: Validate marketplace.json
+        run: |
+          echo "Validating .claude-plugin/marketplace.json..."
+          python3 - <<'EOF'
+          import json, sys
+
+          with open('.claude-plugin/marketplace.json') as f:
+              m = json.load(f)
+
+          errors = []
+
+          if 'keywords' not in m or not isinstance(m['keywords'], list) or len(m['keywords']) == 0:
+              errors.append('keywords must be a non-empty list')
+
+          if errors:
+              for e in errors:
+                  print(f'ERROR: {e}')
+              sys.exit(1)
+
+          print(f"marketplace.json OK — keywords={m['keywords']}")
+          EOF
+
+      - name: Check all skill SKILL.md files exist
+        run: |
+          echo "Checking skill files..."
+          python3 - <<'EOF'
+          import json, os, sys
+
+          with open('.claude-plugin/plugin.json') as f:
+              p = json.load(f)
+
+          missing = []
+          for skill_dir in p.get('skills', []):
+              skill_file = os.path.join(skill_dir, 'SKILL.md')
+              if not os.path.isfile(skill_file):
+                  missing.append(skill_file)
+              else:
+                  print(f'  OK: {skill_file}')
+
+          if missing:
+              for m in missing:
+                  print(f'  MISSING: {m}')
+              sys.exit(1)
+          EOF
+
+      - name: Check all command .md files exist
+        run: |
+          echo "Checking command files..."
+          python3 - <<'EOF'
+          import json, os, sys
+
+          with open('.claude-plugin/plugin.json') as f:
+              p = json.load(f)
+
+          missing = []
+          for cmd_path in p.get('commands', []):
+              if not os.path.isfile(cmd_path):
+                  missing.append(cmd_path)
+              else:
+                  print(f'  OK: {cmd_path}')
+
+          if missing:
+              for m in missing:
+                  print(f'  MISSING: {m}')
+              sys.exit(1)
+          EOF
+
+      - name: Validate SKILL.md frontmatter
+        run: |
+          echo "Validating SKILL.md frontmatter..."
+          python3 - <<'EOF'
+          import os, sys, re
+
+          skill_dirs = ['skills/adr-scan', 'skills/adr-draft', 'skills/adr-link']
+          required_frontmatter = ['name', 'description', 'version']
+          errors = []
+
+          for skill_dir in skill_dirs:
+              skill_file = os.path.join(skill_dir, 'SKILL.md')
+              if not os.path.isfile(skill_file):
+                  continue
+              with open(skill_file) as f:
+                  content = f.read()
+
+              if not content.startswith('---'):
+                  errors.append(f'{skill_file}: missing YAML frontmatter (must start with ---)')
+                  continue
+
+              fm_match = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
+              if not fm_match:
+                  errors.append(f'{skill_file}: frontmatter not properly closed with ---')
+                  continue
+
+              fm_text = fm_match.group(1)
+              for key in required_frontmatter:
+                  if not re.search(rf'^{key}:', fm_text, re.MULTILINE):
+                      errors.append(f'{skill_file}: missing frontmatter field "{key}"')
+
+              if not errors:
+                  print(f'  OK: {skill_file}')
+
+          if errors:
+              for e in errors:
+                  print(f'  ERROR: {e}')
+              sys.exit(1)
+          EOF
+
+      - name: Check no skill or command file is empty
+        run: |
+          echo "Checking for empty files..."
+          python3 - <<'EOF'
+          import json, os, sys
+
+          with open('.claude-plugin/plugin.json') as f:
+              p = json.load(f)
+
+          files_to_check = []
+          for skill_dir in p.get('skills', []):
+              files_to_check.append(os.path.join(skill_dir, 'SKILL.md'))
+          for cmd_path in p.get('commands', []):
+              files_to_check.append(cmd_path)
+
+          empty = []
+          for fpath in files_to_check:
+              if os.path.isfile(fpath) and os.path.getsize(fpath) < 50:
+                  empty.append(fpath)
+              else:
+                  print(f'  OK: {fpath}')
+
+          if empty:
+              for e in empty:
+                  print(f'  EMPTY/TOO SMALL: {e}')
+              sys.exit(1)
+          EOF
+
+      - name: All checks passed
+        run: echo "Plugin structure is valid."

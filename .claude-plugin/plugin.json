@@ -1,0 +1,19 @@
+{
+  "name": "adr-sync",
+  "version": "0.1.0",
+  "author": {
+    "name": "mturac"
+  },
+  "description": "Keep Architecture Decision Records automatically aligned with actual code changes. Detect when code diverges from documented decisions, draft new ADRs, and link decisions to implementing code.",
+  "skills": [
+    "skills/adr-scan",
+    "skills/adr-draft",
+    "skills/adr-link"
+  ],
+  "commands": [
+    "commands/adr-sync.md",
+    "commands/adr-sync-scan.md",
+    "commands/adr-draft.md",
+    "commands/adr-link.md"
+  ]
+}

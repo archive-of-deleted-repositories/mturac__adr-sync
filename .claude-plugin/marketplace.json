@@ -1,0 +1,17 @@
+{
+  "name": "adr-sync",
+  "version": "0.1.0",
+  "keywords": [
+    "adr",
+    "architecture",
+    "documentation",
+    "decisions",
+    "technical-debt",
+    "markdown"
+  ],
+  "categories": [
+    "documentation",
+    "code-quality"
+  ],
+  "compatibility": ">=1.0.0"
+}
